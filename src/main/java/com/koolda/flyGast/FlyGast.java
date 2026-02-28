@@ -22,7 +22,7 @@ public class FlyGast extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("FlyGastPlugin включен!");
+        getLogger().info("FlyGast включен!");
 
         // Запускаем проверку высоты каждые 20 секунд
         new BukkitRunnable() {
@@ -40,7 +40,7 @@ public class FlyGast extends JavaPlugin implements Listener {
             player.setAllowFlight(false);
             player.setFlying(false);
         }
-        getLogger().info("FlyGastPlugin выключен!");
+        getLogger().info("FlyGast выключен!");
     }
 
     @EventHandler
@@ -53,7 +53,7 @@ public class FlyGast extends JavaPlugin implements Listener {
         if (isHappyGhast(vehicle)) {
             // Проверяем, не в аду ли и не в энде ли игрок
             if (isInForbiddenWorld(player)) {
-                player.sendMessage("§cВы не можете летать на Happy Ghast в этом мире!");
+                player.sendMessage("§cПолет отключен в этом мире!");
                 return;
             }
 
