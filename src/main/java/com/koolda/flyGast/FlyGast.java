@@ -8,7 +8,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
-import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
@@ -26,8 +25,6 @@ public class FlyGast extends JavaPlugin implements Listener {
     private boolean flightsIntoTheEnd;
     private boolean flightsIntoOther;
 
-    private boolean sendOnEnterMessage;
-    private String onEnterMessage;
     private boolean sendOnExitMessage;
     private String onExitMessage;
     private boolean sendOnCommandFlyMessage;
@@ -52,8 +49,6 @@ public class FlyGast extends JavaPlugin implements Listener {
         flightsIntoTheEnd = getConfig().getBoolean("flights-into-the-end", false);
         flightsIntoOther = getConfig().getBoolean("flights-into-other", false);
 
-        sendOnEnterMessage = getConfig().getBoolean("message.send-on-enter", false);
-        onEnterMessage = getConfig().getString("message.on-enter");
         sendOnExitMessage = getConfig().getBoolean("message.send-on-exit", false);
         onExitMessage = getConfig().getString("message.on-exit");
         sendOnCommandFlyMessage = getConfig().getBoolean("message.send-on-command-fly", false);
@@ -84,16 +79,6 @@ public class FlyGast extends JavaPlugin implements Listener {
     }
 
     /* ================= СОБЫТИЯ ================= */
-
-    @EventHandler
-    public void onEnter(VehicleEnterEvent e) {
-        if (!(e.getEntered() instanceof Player player)) return;
-        if (isNotHappyGhast(e.getVehicle())) return;
-
-        if (sendOnEnterMessage) {
-            player.sendMessage(onEnterMessage);
-        }
-    }
 
     @EventHandler
     public void onExit(VehicleExitEvent e) {

@@ -8,8 +8,6 @@ flights-into-the-end: true
 flights-into-other: true
 
 message:
-  send-on-enter: false
-  on-enter: "§eВы сели на счастливого гаста"
   send-on-exit: true
   on-exit: "§aСтатус «строитель» активирован"
   send-on-command-fly: true
