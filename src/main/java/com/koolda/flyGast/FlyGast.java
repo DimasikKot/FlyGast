@@ -19,7 +19,7 @@ import java.util.*;
 
 public class FlyGast extends JavaPlugin implements Listener {
 
-    private static final int RADIUS = 200;
+    private int radius;
 
     /** Активный статус "садился на счастливого гаста" */
     private final Map<UUID, HappyGhastSession> sessions = new HashMap<>();
@@ -29,6 +29,10 @@ public class FlyGast extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
+        saveDefaultConfig();
+
+        radius = getConfig().getInt("radius", 5);
+
         Bukkit.getPluginManager().registerEvents(this, this);
 
         new BukkitRunnable() {
@@ -44,7 +48,8 @@ public class FlyGast extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         for (Player p : Bukkit.getOnlinePlayers()) {
-            disableAll(p);
+            p.setAllowFlight(false);
+            p.setFlying(false);
         }
         sessions.clear();
         disabledByCommand.clear();
@@ -54,17 +59,16 @@ public class FlyGast extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onEnter(VehicleEnterEvent e) {
-        if (!(e.getEntered() instanceof Player)) return;
+        if (!(e.getEntered() instanceof Player player)) return;
         if (isNotHappyGhast(e.getVehicle())) return;
 
-        e.getEntered().sendMessage("§aВы сели на Happy Ghast");
+        player.sendMessage("§aВы сели на Happy Ghast");
     }
 
     @EventHandler
     public void onExit(VehicleExitEvent e) {
         if (!(e.getExited() instanceof Player player)) return;
         if (isNotHappyGhast(e.getVehicle())) return;
-
         if (isForbiddenWorld(player.getWorld())) return;
 
         Entity ghast = e.getVehicle();
@@ -73,8 +77,6 @@ public class FlyGast extends JavaPlugin implements Listener {
                 new HappyGhastSession(ghast.getUniqueId(), ghast.getLocation()));
 
         disabledByCommand.remove(player.getUniqueId());
-
-        applySlowFalling(player);
         enableFlight(player);
 
         player.sendMessage("§eСтатус «садился на счастливого гаста» активирован");
@@ -89,9 +91,11 @@ public class FlyGast extends JavaPlugin implements Listener {
 
         sessions.remove(p.getUniqueId());
         disabledByCommand.add(p.getUniqueId());
-        disableAll(p);
 
-        p.sendMessage("§cРежим Happy Ghast отключён");
+        p.setAllowFlight(false);
+        p.setFlying(false);
+
+        p.sendMessage("§cСтатус Happy Ghast отключён");
     }
 
     /* ================= ОСНОВНАЯ ЛОГИКА ================= */
@@ -102,38 +106,31 @@ public class FlyGast extends JavaPlugin implements Listener {
 
             if (!sessions.containsKey(id)) continue;
             if (disabledByCommand.contains(id)) continue;
+
             if (isForbiddenWorld(p.getWorld())) {
                 sessions.remove(id);
-                disableAll(p);
+                disableFlight(p);
                 continue;
             }
 
             HappyGhastSession session = sessions.get(id);
 
-            if (p.getLocation().distance(session.ghastLocation()) > RADIUS) {
+            if (p.getLocation().distance(session.ghastLocation()) > radius) {
                 sessions.remove(id);
-                disableAll(p);
-                p.sendMessage("§cВы отошли слишком далеко от Happy Ghast");
+                disableFlight(p);
+
+                // 👇 ВАЖНО: эффект ТОЛЬКО при отходе
+                giveSlowFalling(p);
+
+                p.sendMessage("§cВы улетели далеко от Happy Ghast");
                 continue;
             }
 
-            applySlowFalling(p);
             enableFlight(p);
         }
     }
 
     /* ================= ВСПОМОГАТЕЛЬНЫЕ ================= */
-
-    private void applySlowFalling(Player p) {
-        p.addPotionEffect(new PotionEffect(
-                PotionEffectType.SLOW_FALLING,
-                20 * 20, // 20 секунд
-                0,
-                false,
-                false,
-                true
-        ));
-    }
 
     private void enableFlight(Player p) {
         if (!p.getAllowFlight()) {
@@ -142,10 +139,20 @@ public class FlyGast extends JavaPlugin implements Listener {
         }
     }
 
-    private void disableAll(Player p) {
-        p.removePotionEffect(PotionEffectType.SLOW_FALLING);
+    private void disableFlight(Player p) {
         p.setAllowFlight(false);
         p.setFlying(false);
+    }
+
+    private void giveSlowFalling(Player p) {
+        p.addPotionEffect(new PotionEffect(
+                PotionEffectType.SLOW_FALLING,
+                20 * 20, // 20 секунд
+                0,
+                false,
+                false,
+                true
+        ));
     }
 
     private boolean isNotHappyGhast(Entity entity) {
