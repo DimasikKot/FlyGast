@@ -1,3 +1,18 @@
-# v1.1 - это версия конфига, обновите, если на сервере используется старая версия
+# v1.2 - это версия конфига, обновите, если на сервере используется старая версия
 
 radius: 200 # Дальность работы полёта игрока от гаста
+slow-down-on-left-the-radius: true
+flights-into-normal: true
+flights-into-nether: true
+flights-into-the-end: true
+flights-into-other: true
+
+message:
+  send-on-enter: false
+  on-enter: "§eВы сели на счастливого гаста"
+  send-on-exit: true
+  on-exit: "§aСтатус «строитель» активирован"
+  send-on-command-fly: true
+  on-command-fly: "§cСтатус «строитель» отключён"
+  send-on-left-the-radius: true
+  on-left-the-radius: "§cСтатус «строитель» отключён. Вы улетели слишком далеко от гаста"

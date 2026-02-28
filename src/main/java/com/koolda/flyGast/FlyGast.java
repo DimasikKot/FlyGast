@@ -20,6 +20,20 @@ import java.util.*;
 public class FlyGast extends JavaPlugin implements Listener {
 
     private int radius;
+    private boolean slowDownOnLeftTheRadius;
+    private boolean flightsIntoNormal;
+    private boolean flightsIntoNether;
+    private boolean flightsIntoTheEnd;
+    private boolean flightsIntoOther;
+
+    private boolean sendOnEnterMessage;
+    private String onEnterMessage;
+    private boolean sendOnExitMessage;
+    private String onExitMessage;
+    private boolean sendOnCommandFlyMessage;
+    private String onCommandFlyMessage;
+    private boolean sendOnLeftTheRadiusMessage;
+    private String onLeftTheRadiusMessage;
 
     /** Активный статус "садился на счастливого гаста" */
     private final Map<UUID, HappyGhastSession> sessions = new HashMap<>();
@@ -32,6 +46,20 @@ public class FlyGast extends JavaPlugin implements Listener {
         saveDefaultConfig();
 
         radius = getConfig().getInt("radius", 5);
+        slowDownOnLeftTheRadius = getConfig().getBoolean("slow-down-on-left-the-radius", false);
+        flightsIntoNormal = getConfig().getBoolean("flights-into-normal", false);
+        flightsIntoNether = getConfig().getBoolean("flights-into-nether", false);
+        flightsIntoTheEnd = getConfig().getBoolean("flights-into-the-end", false);
+        flightsIntoOther = getConfig().getBoolean("flights-into-other", false);
+
+        sendOnEnterMessage = getConfig().getBoolean("message.send-on-enter", false);
+        onEnterMessage = getConfig().getString("message.on-enter");
+        sendOnExitMessage = getConfig().getBoolean("message.send-on-exit", false);
+        onExitMessage = getConfig().getString("message.on-exit");
+        sendOnCommandFlyMessage = getConfig().getBoolean("message.send-on-command-fly", false);
+        onCommandFlyMessage = getConfig().getString("message.on-command-fly");
+        sendOnLeftTheRadiusMessage = getConfig().getBoolean("message.send-on-left-the-radius", false);
+        onLeftTheRadiusMessage = getConfig().getString("message.on-left-the-radius");
 
         Bukkit.getPluginManager().registerEvents(this, this);
 
@@ -62,7 +90,9 @@ public class FlyGast extends JavaPlugin implements Listener {
         if (!(e.getEntered() instanceof Player player)) return;
         if (isNotHappyGhast(e.getVehicle())) return;
 
-        player.sendMessage("§aВы сели на Happy Ghast");
+        if (sendOnEnterMessage) {
+            player.sendMessage(onEnterMessage);
+        }
     }
 
     @EventHandler
@@ -79,7 +109,9 @@ public class FlyGast extends JavaPlugin implements Listener {
         disabledByCommand.remove(player.getUniqueId());
         enableFlight(player);
 
-        player.sendMessage("§eСтатус «садился на счастливого гаста» активирован");
+        if (sendOnExitMessage) {
+            player.sendMessage(onExitMessage);
+        }
     }
 
     @EventHandler
@@ -87,46 +119,53 @@ public class FlyGast extends JavaPlugin implements Listener {
         if (!e.getMessage().equalsIgnoreCase("/fly")) return;
 
         e.setCancelled(true);
-        Player p = e.getPlayer();
+        Player player = e.getPlayer();
 
-        sessions.remove(p.getUniqueId());
-        disabledByCommand.add(p.getUniqueId());
+        sessions.remove(player.getUniqueId());
+        disabledByCommand.add(player.getUniqueId());
 
-        p.setAllowFlight(false);
-        p.setFlying(false);
+        player.setAllowFlight(false);
+        player.setFlying(false);
 
-        p.sendMessage("§cСтатус Happy Ghast отключён");
+        if (sendOnCommandFlyMessage) {
+            player.sendMessage(onCommandFlyMessage);
+        }
     }
 
     /* ================= ОСНОВНАЯ ЛОГИКА ================= */
 
     private void tick() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            UUID id = p.getUniqueId();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            UUID id = player.getUniqueId();
 
             if (!sessions.containsKey(id)) continue;
             if (disabledByCommand.contains(id)) continue;
 
-            if (isForbiddenWorld(p.getWorld())) {
+            if (isForbiddenWorld(player.getWorld())) {
                 sessions.remove(id);
-                disableFlight(p);
+                disableFlight(player);
                 continue;
             }
 
             HappyGhastSession session = sessions.get(id);
 
-            if (p.getLocation().distance(session.ghastLocation()) > radius) {
+            if (player.getLocation().distance(session.ghastLocation()) > radius) {
                 sessions.remove(id);
-                disableFlight(p);
+                disableFlight(player);
 
                 // 👇 ВАЖНО: эффект ТОЛЬКО при отходе
-                giveSlowFalling(p);
+                if (slowDownOnLeftTheRadius) {
+                    giveSlowFalling(player);
+                }
 
-                p.sendMessage("§cВы улетели далеко от Happy Ghast");
+                if (sendOnLeftTheRadiusMessage) {
+                    player.sendMessage(onLeftTheRadiusMessage);
+                }
+
                 continue;
             }
 
-            enableFlight(p);
+            enableFlight(player);
         }
     }
 
@@ -167,9 +206,15 @@ public class FlyGast extends JavaPlugin implements Listener {
         return !entity.getType().toString().contains("GHAST");
     }
 
-    private boolean isForbiddenWorld(World world) {
-        return world.getEnvironment() == World.Environment.NETHER
-                || world.getEnvironment() == World.Environment.THE_END;
+    private boolean isForbiddenWorld(World world) { // Это запрещённый мир?
+        World.Environment environment = world.getEnvironment();
+
+        return switch (environment) {
+            case NORMAL -> !flightsIntoNormal;
+            case NETHER -> !flightsIntoNether;
+            case THE_END -> !flightsIntoTheEnd;
+            default -> !flightsIntoOther;
+        };
     }
 
     /* ================= RECORD ================= */

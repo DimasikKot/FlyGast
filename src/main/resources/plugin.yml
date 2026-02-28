@@ -1,4 +1,4 @@
 name: FlyGast
-version: 'v1.1-paper1.21.10'
+version: 'v1.2-paper1.21.10'
 main: com.koolda.flyGast.FlyGast
 api-version: '1.21'
