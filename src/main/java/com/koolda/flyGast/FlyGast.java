@@ -1,5 +1,6 @@
 package com.koolda.flyGast;
 
+import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -8,29 +9,35 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 public class FlyGast extends JavaPlugin implements Listener {
 
-    private final Map<UUID, Boolean> flyEnabled = new HashMap<>();
+    private final Map<UUID, Boolean> slowFallingActive = new HashMap<>();
+    private final Map<UUID, Boolean> flyDisabledByCommand = new HashMap<>();
+    private final int HAPPY_GHAST_RADIUS = 200;
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("FlyGast включен!");
 
-        // Запускаем проверку высоты каждые 20 секунд
+        // Запускаем проверку каждые 2 секунды для эффекта плавного падения
         new BukkitRunnable() {
             @Override
             public void run() {
-                checkPlayerHeight();
+                checkSlowFallingEffect();
             }
-        }.runTaskTimer(this, 0L, 20L * 20); // Каждые 20 секунд
+        }.runTaskTimer(this, 0L, 20L * 10); // Каждые 10 секунд
     }
 
     @Override
@@ -39,6 +46,7 @@ public class FlyGast extends JavaPlugin implements Listener {
         for (Player player : getServer().getOnlinePlayers()) {
             player.setAllowFlight(false);
             player.setFlying(false);
+            player.removePotionEffect(PotionEffectType.SLOW_FALLING);
         }
         getLogger().info("FlyGast выключен!");
     }
@@ -53,17 +61,12 @@ public class FlyGast extends JavaPlugin implements Listener {
         if (isHappyGhast(vehicle)) {
             // Проверяем, не в аду ли и не в энде ли игрок
             if (isInForbiddenWorld(player)) {
-                player.sendMessage("§cПолет отключен в этом мире!");
+                player.sendMessage("§cHappy Ghast не работает в этом мире!");
                 return;
             }
 
-            // Включаем полет
-            player.setAllowFlight(true);
-            player.setFlying(true);
-            flyEnabled.put(player.getUniqueId(), true);
-
-            player.sendMessage("§aВы сели на Happy Ghast! Полет активирован!");
-            getLogger().info("Игрок " + player.getName() + " сел на Happy Ghast и получил полет в мире " + player.getWorld().getName());
+            player.sendMessage("§aВы сели на Happy Ghast! В радиусе 200 блоков вы получите эффект плавного падения!");
+            getLogger().info("Игрок " + player.getName() + " сел на Happy Ghast");
         }
     }
 
@@ -75,9 +78,9 @@ public class FlyGast extends JavaPlugin implements Listener {
 
         // Проверяем, что слез именно с Happy Ghast
         if (isHappyGhast(vehicle)) {
-            // Отмечаем, что игрок слез с гаста
-            flyEnabled.put(player.getUniqueId(), false);
-            player.sendMessage("§eВы слезли с Happy Ghast. Полет отключится ниже 50 блоков!");
+            // Убираем статус активного эффекта
+            slowFallingActive.remove(player.getUniqueId());
+            player.sendMessage("§eВы слезли с Happy Ghast. Эффект плавного падения больше не активен!");
         }
     }
 
@@ -85,60 +88,113 @@ public class FlyGast extends JavaPlugin implements Listener {
     public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
         Player player = event.getPlayer();
 
-        // Если игрок переместился в запрещенный мир, отключаем полет
-        if (isInForbiddenWorld(player) && flyEnabled.getOrDefault(player.getUniqueId(), false)) {
+        // Если игрок переместился в запрещенный мир
+        if (isInForbiddenWorld(player)) {
             player.setAllowFlight(false);
             player.setFlying(false);
-            flyEnabled.put(player.getUniqueId(), false);
-            player.sendMessage("§cПолет отключен в этом мире!");
+            player.removePotionEffect(PotionEffectType.SLOW_FALLING);
+            slowFallingActive.remove(player.getUniqueId());
         }
+    }
 
-        // Если игрок переместился из запрещенного мира в разрешенный и сидит на мобе
-        if (!isInForbiddenWorld(player) && player.isInsideVehicle() && isHappyGhast(player.getVehicle())) {
-            World fromWorld = event.getFrom();
-            if (isForbiddenWorld(fromWorld)) {
-                player.setAllowFlight(true);
-                player.setFlying(true);
-                flyEnabled.put(player.getUniqueId(), true);
-                player.sendMessage("§aПолет снова активирован!");
+    @EventHandler
+    public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
+        Player player = event.getPlayer();
+        String command = event.getMessage().toLowerCase();
+
+        if (command.equals("/fly") || command.equals("fly")) {
+            event.setCancelled(true); // Отменяем стандартную команду если она есть
+
+            UUID playerId = player.getUniqueId();
+            boolean currentStatus = flyDisabledByCommand.getOrDefault(playerId, false);
+
+            if (currentStatus) {
+                // Включаем полет обратно
+                flyDisabledByCommand.put(playerId, false);
+                player.sendMessage("§aВы снова можете летать при наличии эффекта плавного падения!");
+
+                // Проверяем, должен ли игрок сейчас летать
+                if (hasSlowFalling(player) && !isInForbiddenWorld(player)) {
+                    player.setAllowFlight(true);
+                    if (!player.isFlying()) {
+                        player.setFlying(true);
+                    }
+                }
+            } else {
+                // Отключаем полет
+                flyDisabledByCommand.put(playerId, true);
+                player.setAllowFlight(false);
+                player.setFlying(false);
+                player.sendMessage("§cВы отключили полет. Чтобы снова летать, введите /fly еще раз!");
             }
         }
     }
 
-    private void checkPlayerHeight() {
-        for (Player player : getServer().getOnlinePlayers()) {
-            // Проверяем, есть ли у игрока активный полет от нашего плагина
-            if (!flyEnabled.getOrDefault(player.getUniqueId(), false)) {
-                continue;
-            }
-
+    private void checkSlowFallingEffect() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
             // Проверяем, не в запрещенном ли мире игрок
             if (isInForbiddenWorld(player)) {
-                player.setAllowFlight(false);
-                player.setFlying(false);
-                flyEnabled.put(player.getUniqueId(), false);
-                player.sendMessage("§cПолет отключен в этом мире!");
+                if (player.getAllowFlight()) {
+                    player.setAllowFlight(false);
+                    player.setFlying(false);
+                }
+                player.removePotionEffect(PotionEffectType.SLOW_FALLING);
+                slowFallingActive.remove(player.getUniqueId());
                 continue;
             }
 
-            // Проверяем высоту
-            int FLY_DISABLE_HEIGHT = 50;
-            if (player.getLocation().getY() < FLY_DISABLE_HEIGHT) {
-                // Отключаем полет
+            // Проверяем, отключил ли игрок полет через команду
+            if (flyDisabledByCommand.getOrDefault(player.getUniqueId(), false)) {
                 player.setAllowFlight(false);
                 player.setFlying(false);
-                flyEnabled.put(player.getUniqueId(), false);
-
-                player.sendMessage("§cВы ниже 50 блоков! Полет отключен!");
-                getLogger().info("Полет отключен для " + player.getName() + " (ниже 50 блоков)");
+                continue;
             }
 
-            // Если игрок не на Happy Ghast, но выше 50 блоков - полет остается
-            if (!isPlayerOnHappyGhast(player)) {
-                player.getLocation();
-            }// Игрок слез с гаста, но еще высоко - полет остается
-// Ничего не делаем
+            // Проверяем, сидит ли игрок на Happy Ghast
+            if (player.isInsideVehicle() && isHappyGhast(player.getVehicle())) {
+                Entity vehicle = player.getVehicle();
+
+                // Проверяем расстояние до Happy Ghast
+                if (player.getLocation().distance(vehicle.getLocation()) <= HAPPY_GHAST_RADIUS) {
+                    // Даем эффект плавного падения, если его нет
+                    if (!player.hasPotionEffect(PotionEffectType.SLOW_FALLING)) {
+                        player.addPotionEffect(new PotionEffect(
+                                PotionEffectType.SLOW_FALLING,
+                                20 * 20, // 10 секунд (обновляется каждые 2 секунды)
+                                0,   // Уровень 1
+                                false,
+                                false,
+                                true
+                        ));
+                        slowFallingActive.put(player.getUniqueId(), true);
+                    }
+                }
+            }
+
+            // Управление полетом на основе эффекта плавного падения
+            boolean hasSlowFalling = hasSlowFalling(player);
+            boolean hadSlowFalling = slowFallingActive.getOrDefault(player.getUniqueId(), false);
+
+            if (hasSlowFalling) {
+                // Эффект появился - включаем полет
+                if (!flyDisabledByCommand.getOrDefault(player.getUniqueId(), false)) {
+                    player.setAllowFlight(true);
+                    player.sendMessage("§aВы получили способность летать благодаря эффекту плавного падения!");
+                }
+                slowFallingActive.put(player.getUniqueId(), true);
+            } else {
+                // Эффект пропал - отключаем полет
+                player.setAllowFlight(false);
+                player.setFlying(false);
+                player.sendMessage("§cЭффект плавного падения закончился - полет отключен!");
+                slowFallingActive.put(player.getUniqueId(), false);
+            }
         }
+    }
+
+    private boolean hasSlowFalling(Player player) {
+        return player.hasPotionEffect(PotionEffectType.SLOW_FALLING) &&
+                Objects.requireNonNull(player.getPotionEffect(PotionEffectType.SLOW_FALLING)).getAmplifier() == 0;
     }
 
     private boolean isHappyGhast(Entity entity) {
@@ -157,13 +213,6 @@ public class FlyGast extends JavaPlugin implements Listener {
         return entityType.contains("HAPPY_GHAST") || entityType.contains("HAPPYGHAST");
     }
 
-    private boolean isPlayerOnHappyGhast(Player player) {
-        if (!player.isInsideVehicle()) return false;
-
-        Entity vehicle = player.getVehicle();
-        return isHappyGhast(vehicle);
-    }
-
     private boolean isInForbiddenWorld(Player player) {
         World world = player.getWorld();
         String worldName = world.getName().toLowerCase();
@@ -180,9 +229,5 @@ public class FlyGast extends JavaPlugin implements Listener {
 
         // Также проверяем по названиям на всякий случай
         return worldName.contains("nether") || worldName.contains("hell") || worldName.contains("end") || worldName.contains("the_end");
-    }
-
-    private boolean isForbiddenWorld(World world) {
-        return world.getEnvironment() == World.Environment.NETHER || world.getEnvironment() == World.Environment.THE_END;
     }
 }
