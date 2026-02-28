@@ -210,9 +210,6 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
     private void disableFlight(Player player) {
         player.setAllowFlight(false);
         player.setFlying(false);
-
-        // Сбрасываем урон от падения
-        player.setFallDistance(0);
     }
 
     private void giveSlowFalling(Player player) {
@@ -222,9 +219,6 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
 
     private void clearSlowFalling(Player player) {
         player.removePotionEffect(PotionEffectType.SLOW_FALLING);
-
-        // Сбрасываем урон от падения
-        player.setFallDistance(0);
     }
 
     private boolean isNotHappyGhast(Entity entity) {
