@@ -8,6 +8,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
@@ -33,8 +35,8 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
     private boolean sendOnLeftTheRadiusMessage;
     private String onLeftTheRadiusMessage;
 
-    /** Активный статус "строитель" */
-    private final Map<UUID, HappyGhastSession> sessions = new HashMap<>();
+    // Активный статус "строитель"
+    private final Map<UUID, PlayerSession> sessions = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -70,9 +72,7 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         for (Player player : Bukkit.getOnlinePlayers()) {
-            UUID id = player.getUniqueId();
-
-            if (!sessions.containsKey(id)) return;
+            if (!sessions.containsKey(player.getUniqueId())) return;
 
             disableFlight(player);
             if (slowDownOnDisable) {
@@ -92,8 +92,7 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
 
         Entity ghast = event.getVehicle();
 
-        sessions.put(player.getUniqueId(),
-                new HappyGhastSession(ghast.getUniqueId(), ghast.getLocation()));
+        sessions.put(player.getUniqueId(), new PlayerSession(ghast.getUniqueId(), ghast.getLocation(), player.getWorld().getEnvironment()));
 
         enableFlight(player);
 
@@ -123,6 +122,29 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
         }
     }
 
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+
+        if (sessions.containsKey(player.getUniqueId())) {
+            if (slowDownOnDisable) {
+                giveSlowFalling(player);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayer(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+
+        if (sessions.containsKey(player.getUniqueId())) {
+            enableFlight(player);
+            if (slowDownOnDisable) {
+                clearSlowFalling(player);
+            }
+        }
+    }
+
     /* ================= ОСНОВНАЯ ЛОГИКА ================= */
 
     private void tick() {
@@ -143,7 +165,19 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
                 continue;
             }
 
-            HappyGhastSession session = sessions.get(id);
+            PlayerSession session = sessions.get(id);
+
+            if (isChangeWorld(player.getWorld(), session.startWorld)) {
+                sessions.remove(id);
+
+                disableFlight(player);
+
+                if (sendOnLeftTheRadiusMessage) {
+                    player.sendMessage(onLeftTheRadiusMessage);
+                }
+
+                continue;
+            }
 
             if (player.getLocation().distance(session.ghastLocation()) > radius) {
                 sessions.remove(id);
@@ -176,25 +210,28 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
     private void disableFlight(Player player) {
         player.setAllowFlight(false);
         player.setFlying(false);
+
+        // Сбрасываем урон от падения
+        player.setFallDistance(0);
     }
 
     private void giveSlowFalling(Player player) {
-        player.addPotionEffect(new PotionEffect(
-                PotionEffectType.SLOW_FALLING,
-                20 * 20, // 20 секунд
-                0,
-                false,
-                false,
-                true
-        ));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 20 * 20, // 20 секунд
+                0, false, false, true));
+    }
+
+    private void clearSlowFalling(Player player) {
+        player.removePotionEffect(PotionEffectType.SLOW_FALLING);
+
+        // Сбрасываем урон от падения
+        player.setFallDistance(0);
     }
 
     private boolean isNotHappyGhast(Entity entity) {
         if (entity == null) return true;
 
         if (entity.customName() != null) {
-            String name = Objects.requireNonNull(entity.customName()).toString()
-                    .replaceAll("§[0-9a-fk-or]", "");
+            String name = Objects.requireNonNull(entity.customName()).toString().replaceAll("§[0-9a-fk-or]", "");
             return !name.contains("Happy Ghast");
         }
 
@@ -212,7 +249,11 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
         };
     }
 
+    private boolean isChangeWorld(World currentWorld, World.Environment startWorld) { // Это переход между мирами?
+        return !(startWorld == currentWorld.getEnvironment());
+    }
+
     /* ================= RECORD ================= */
 
-    private record HappyGhastSession(UUID ghastId, Location ghastLocation) {}
+    private record PlayerSession(UUID playerId, Location ghastLocation, World.Environment startWorld) {}
 }
