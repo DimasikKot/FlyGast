@@ -1,4 +1,4 @@
-package com.koolda.flyGast;
+package com.koolda.sitOnHappyGhastToFly;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -16,10 +16,11 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 
-public class FlyGast extends JavaPlugin implements Listener {
+public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
 
     private int radius;
-    private boolean slowDownOnLeftTheRadius;
+    private boolean slowDownOnDisable;
+    private boolean slowDownOnCommandFly;
     private boolean flightsIntoNormal;
     private boolean flightsIntoNether;
     private boolean flightsIntoTheEnd;
@@ -32,18 +33,16 @@ public class FlyGast extends JavaPlugin implements Listener {
     private boolean sendOnLeftTheRadiusMessage;
     private String onLeftTheRadiusMessage;
 
-    /** Активный статус "садился на счастливого гаста" */
+    /** Активный статус "строитель" */
     private final Map<UUID, HappyGhastSession> sessions = new HashMap<>();
-
-    /** Игроки, которые вручную отключили /fly */
-    private final Set<UUID> disabledByCommand = new HashSet<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
 
         radius = getConfig().getInt("radius", 5);
-        slowDownOnLeftTheRadius = getConfig().getBoolean("slow-down-on-left-the-radius", false);
+        slowDownOnDisable = getConfig().getBoolean("slow-down-on-disable", false);
+        slowDownOnCommandFly = getConfig().getBoolean("slow-down-on-command-fly", false);
         flightsIntoNormal = getConfig().getBoolean("flights-into-normal", false);
         flightsIntoNether = getConfig().getBoolean("flights-into-nether", false);
         flightsIntoTheEnd = getConfig().getBoolean("flights-into-the-end", false);
@@ -65,33 +64,37 @@ public class FlyGast extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 0L, 20L * 10); // каждые 10 секунд
 
-        getLogger().info("FlyGast включён");
+        getLogger().info("SitOnHappyGhastToFly включён");
     }
 
     @Override
     public void onDisable() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            p.setAllowFlight(false);
-            p.setFlying(false);
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            UUID id = player.getUniqueId();
+
+            if (!sessions.containsKey(id)) return;
+
+            disableFlight(player);
+            if (slowDownOnDisable) {
+                giveSlowFalling(player);
+            }
         }
         sessions.clear();
-        disabledByCommand.clear();
     }
 
     /* ================= СОБЫТИЯ ================= */
 
     @EventHandler
-    public void onExit(VehicleExitEvent e) {
-        if (!(e.getExited() instanceof Player player)) return;
-        if (isNotHappyGhast(e.getVehicle())) return;
+    public void onExit(VehicleExitEvent event) {
+        if (!(event.getExited() instanceof Player player)) return;
+        if (isNotHappyGhast(event.getVehicle())) return;
         if (isForbiddenWorld(player.getWorld())) return;
 
-        Entity ghast = e.getVehicle();
+        Entity ghast = event.getVehicle();
 
         sessions.put(player.getUniqueId(),
                 new HappyGhastSession(ghast.getUniqueId(), ghast.getLocation()));
 
-        disabledByCommand.remove(player.getUniqueId());
         enableFlight(player);
 
         if (sendOnExitMessage) {
@@ -100,17 +103,20 @@ public class FlyGast extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onCommand(PlayerCommandPreprocessEvent e) {
-        if (!e.getMessage().equalsIgnoreCase("/fly")) return;
+    public void onCommand(PlayerCommandPreprocessEvent event) {
+        if (!event.getMessage().equalsIgnoreCase("/fly")) return;
 
-        e.setCancelled(true);
-        Player player = e.getPlayer();
+        event.setCancelled(true);
+        Player player = event.getPlayer();
+        UUID id = player.getUniqueId();
 
-        sessions.remove(player.getUniqueId());
-        disabledByCommand.add(player.getUniqueId());
+        if (!sessions.containsKey(id)) return;
+        sessions.remove(id);
 
-        player.setAllowFlight(false);
-        player.setFlying(false);
+        disableFlight(player);
+        if (slowDownOnCommandFly) {
+            giveSlowFalling(player);
+        }
 
         if (sendOnCommandFlyMessage) {
             player.sendMessage(onCommandFlyMessage);
@@ -124,11 +130,16 @@ public class FlyGast extends JavaPlugin implements Listener {
             UUID id = player.getUniqueId();
 
             if (!sessions.containsKey(id)) continue;
-            if (disabledByCommand.contains(id)) continue;
 
             if (isForbiddenWorld(player.getWorld())) {
                 sessions.remove(id);
+
                 disableFlight(player);
+
+                if (sendOnLeftTheRadiusMessage) {
+                    player.sendMessage(onLeftTheRadiusMessage);
+                }
+
                 continue;
             }
 
@@ -136,10 +147,9 @@ public class FlyGast extends JavaPlugin implements Listener {
 
             if (player.getLocation().distance(session.ghastLocation()) > radius) {
                 sessions.remove(id);
-                disableFlight(player);
 
-                // 👇 ВАЖНО: эффект ТОЛЬКО при отходе
-                if (slowDownOnLeftTheRadius) {
+                disableFlight(player);
+                if (slowDownOnDisable) {
                     giveSlowFalling(player);
                 }
 
@@ -156,20 +166,20 @@ public class FlyGast extends JavaPlugin implements Listener {
 
     /* ================= ВСПОМОГАТЕЛЬНЫЕ ================= */
 
-    private void enableFlight(Player p) {
-        if (!p.getAllowFlight()) {
-            p.setAllowFlight(true);
-            p.setFlying(true);
+    private void enableFlight(Player player) {
+        if (!player.getAllowFlight()) {
+            player.setAllowFlight(true);
+            player.setFlying(true);
         }
     }
 
-    private void disableFlight(Player p) {
-        p.setAllowFlight(false);
-        p.setFlying(false);
+    private void disableFlight(Player player) {
+        player.setAllowFlight(false);
+        player.setFlying(false);
     }
 
-    private void giveSlowFalling(Player p) {
-        p.addPotionEffect(new PotionEffect(
+    private void giveSlowFalling(Player player) {
+        player.addPotionEffect(new PotionEffect(
                 PotionEffectType.SLOW_FALLING,
                 20 * 20, // 20 секунд
                 0,
