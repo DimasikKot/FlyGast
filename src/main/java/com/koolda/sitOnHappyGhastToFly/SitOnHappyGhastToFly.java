@@ -1,9 +1,11 @@
 package com.koolda.sitOnHappyGhastToFly;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -87,6 +89,8 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
     @EventHandler
     public void onExit(VehicleExitEvent event) {
         if (!(event.getExited() instanceof Player player)) return;
+
+        if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) return;
         if (isNotHappyGhast(event.getVehicle())) return;
         if (isForbiddenWorld(player.getWorld())) return;
 
@@ -152,6 +156,11 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
             UUID id = player.getUniqueId();
 
             if (!sessions.containsKey(id)) continue;
+
+            if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
+                sessions.remove(id);
+                continue;
+            }
 
             if (isForbiddenWorld(player.getWorld())) {
                 sessions.remove(id);
@@ -223,13 +232,7 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
 
     private boolean isNotHappyGhast(Entity entity) {
         if (entity == null) return true;
-
-        if (entity.customName() != null) {
-            String name = Objects.requireNonNull(entity.customName()).toString().replaceAll("§[0-9a-fk-or]", "");
-            return !name.contains("Happy Ghast");
-        }
-
-        return !entity.getType().toString().contains("GHAST");
+        return !(entity.getType() == EntityType.HAPPY_GHAST);
     }
 
     private boolean isForbiddenWorld(World world) { // Это запрещённый мир?

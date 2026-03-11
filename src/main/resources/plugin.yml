@@ -1,5 +1,5 @@
 name: SitOnHappyGhastToFly
-version: 'v1.2-paper1.21.10'
+version: 'v1.4-paper1.21.10'
 main: com.koolda.sitOnHappyGhastToFly.SitOnHappyGhastToFly
 api-version: '1.21'
 
