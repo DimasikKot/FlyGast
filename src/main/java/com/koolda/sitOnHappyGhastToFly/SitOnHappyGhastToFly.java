@@ -49,22 +49,22 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
         saveDefaultConfig();
 
         radius = getConfig().getInt("radius", 5);
-        slowDownOnDisable = getConfig().getBoolean("slow-down-on-disable", false);
+        slowDownOnDisable = getConfig().getBoolean("slow-down-on-disable", true);
         slowDownOnCommandFly = getConfig().getBoolean("slow-down-on-command-fly", false);
-        flightsIntoNormal = getConfig().getBoolean("flights-into-normal", false);
-        flightsIntoNether = getConfig().getBoolean("flights-into-nether", false);
-        flightsIntoTheEnd = getConfig().getBoolean("flights-into-the-end", false);
-        flightsIntoOther = getConfig().getBoolean("flights-into-other", false);
+        flightsIntoNormal = getConfig().getBoolean("flights-into-normal", true);
+        flightsIntoNether = getConfig().getBoolean("flights-into-nether", true);
+        flightsIntoTheEnd = getConfig().getBoolean("flights-into-the-end", true);
+        flightsIntoOther = getConfig().getBoolean("flights-into-other", true);
 
-        sendOnExitMessage = getConfig().getBoolean("message.send-on-exit", false);
+        sendOnExitMessage = getConfig().getBoolean("message.send-on-exit", true);
         onExitMessage = getConfig().getString("message.on-exit");
-        sendOnExitUpdateRadius = getConfig().getBoolean("message.send-on-exit-update-radius", false);
+        sendOnExitUpdateRadius = getConfig().getBoolean("message.send-on-exit-update-radius", true);
         onExitUpdateRadius = getConfig().getString("message.on-exit-update-radius");
-        sendOnCommandFlyMessage = getConfig().getBoolean("message.send-on-command-fly", false);
+        sendOnCommandFlyMessage = getConfig().getBoolean("message.send-on-command-fly", true);
         onCommandFlyMessage = getConfig().getString("message.on-command-fly");
-        sendOnLeftTheRadiusMessage = getConfig().getBoolean("message.send-on-left-the-radius", false);
+        sendOnLeftTheRadiusMessage = getConfig().getBoolean("message.send-on-left-the-radius", true);
         onLeftTheRadiusMessage = getConfig().getString("message.on-left-the-radius");
-        sendOnChangeGamemode = getConfig().getBoolean("message.send-on-change-gamemode", false);
+        sendOnChangeGamemode = getConfig().getBoolean("message.send-on-change-gamemode", true);
         onChangeGamemode = getConfig().getString("message.on-change-gamemode");
 
         Bukkit.getPluginManager().registerEvents(this, this);
