@@ -32,10 +32,14 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
 
     private boolean sendOnExitMessage;
     private String onExitMessage;
+    private boolean sendOnExitUpdateRadius;
+    private String onExitUpdateRadius;
     private boolean sendOnCommandFlyMessage;
     private String onCommandFlyMessage;
     private boolean sendOnLeftTheRadiusMessage;
     private String onLeftTheRadiusMessage;
+    private boolean sendOnChangeGamemode;
+    private String onChangeGamemode;
 
     // Активный статус "строитель"
     private final Map<UUID, PlayerSession> sessions = new HashMap<>();
@@ -54,10 +58,14 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
 
         sendOnExitMessage = getConfig().getBoolean("message.send-on-exit", false);
         onExitMessage = getConfig().getString("message.on-exit");
+        sendOnExitUpdateRadius = getConfig().getBoolean("message.send-on-exit-update-radius", false);
+        onExitUpdateRadius = getConfig().getString("message.on-exit-update-radius");
         sendOnCommandFlyMessage = getConfig().getBoolean("message.send-on-command-fly", false);
         onCommandFlyMessage = getConfig().getString("message.on-command-fly");
         sendOnLeftTheRadiusMessage = getConfig().getBoolean("message.send-on-left-the-radius", false);
         onLeftTheRadiusMessage = getConfig().getString("message.on-left-the-radius");
+        sendOnChangeGamemode = getConfig().getBoolean("message.send-on-change-gamemode", false);
+        onChangeGamemode = getConfig().getString("message.on-change-gamemode");
 
         Bukkit.getPluginManager().registerEvents(this, this);
 
@@ -95,13 +103,22 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
         if (isForbiddenWorld(player.getWorld())) return;
 
         Entity ghast = event.getVehicle();
+        UUID id = player.getUniqueId();
+
+        boolean isUpdateRadius = sessions.containsKey(id);
 
         sessions.put(player.getUniqueId(), new PlayerSession(ghast.getUniqueId(), ghast.getLocation(), player.getWorld().getEnvironment()));
 
         enableFlight(player);
 
-        if (sendOnExitMessage) {
-            player.sendMessage(onExitMessage);
+        if (isUpdateRadius) {
+            if (sendOnExitUpdateRadius) {
+                player.sendMessage(onExitUpdateRadius);
+            }
+        } else {
+            if (sendOnExitMessage) {
+                player.sendMessage(onExitMessage);
+            }
         }
     }
 
@@ -157,11 +174,6 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
 
             if (!sessions.containsKey(id)) continue;
 
-            if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
-                sessions.remove(id);
-                continue;
-            }
-
             if (isForbiddenWorld(player.getWorld())) {
                 sessions.remove(id);
 
@@ -190,6 +202,14 @@ public class SitOnHappyGhastToFly extends JavaPlugin implements Listener {
 
             if (player.getLocation().distance(session.ghastLocation()) > radius) {
                 sessions.remove(id);
+
+                if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
+                    if (sendOnChangeGamemode) {
+                        player.sendMessage(onChangeGamemode);
+                    }
+
+                    continue;
+                }
 
                 disableFlight(player);
                 if (slowDownOnDisable) {
